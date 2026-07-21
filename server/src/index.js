@@ -3,6 +3,7 @@ const cors = require('cors');
 const store = require('./data/store');
 const {
   createCustomer,
+  createTenant,
   createDefaultOnboardingSteps,
   calculateProgress
 } = require('./models');
@@ -135,6 +136,39 @@ app.get('/api/tenants/:customerId', (req, res) => {
     return res.status(404).json({ error: 'Tenant not found' });
   }
   res.json(tenant);
+});
+
+// Provision a customer's tenant (Tenant Setup step completed)
+app.post('/api/tenants/:customerId/provision', (req, res) => {
+  const customerId = req.params.customerId;
+  const state = store.getOnboardingState(customerId);
+  if (!state) {
+    return res.status(404).json({ error: 'Onboarding state not found' });
+  }
+
+  let tenant = store.getTenantByCustomerId(customerId);
+  if (!tenant) {
+    tenant = store.addTenant(createTenant({ customerId }));
+  }
+  tenant.status = 'active';
+
+  const steps = state.steps.map(step =>
+    step.name === 'Tenant Setup' ? { ...step, status: 'completed' } : step
+  );
+
+  const updated = store.updateOnboardingState(customerId, {
+    steps,
+    progressPercent: calculateProgress(steps)
+  });
+
+  const customer = store.getCustomerById(customerId);
+  res.status(200).json({
+    ...updated,
+    customerName: customer?.name || 'Unknown',
+    customerIndustry: customer?.industry || '',
+    customerRegion: customer?.region || '',
+    tenant
+  });
 });
 
 // Start server (only when run directly, not when imported for tests)
