@@ -1,6 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
+const {
+  createCustomer,
+  createDefaultOnboardingSteps,
+  calculateProgress
+} = require('./models');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +22,37 @@ app.get('/api/health', (req, res) => {
 // Get all customers
 app.get('/api/customers', (req, res) => {
   res.json(store.getCustomers());
+});
+
+// Create a customer (Customer Info step auto-completed)
+app.post('/api/customers', (req, res) => {
+  const { name, industry, region, contactEmail } = req.body || {};
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+
+  const customer = createCustomer({ name: name.trim(), industry, region, contactEmail });
+
+  const steps = createDefaultOnboardingSteps();
+  const infoStep = steps.find(s => s.name === 'Customer Info');
+  infoStep.status = 'completed';
+
+  const onboardingState = {
+    customerId: customer.id,
+    steps,
+    progressPercent: calculateProgress(steps)
+  };
+
+  store.addCustomer(customer);
+  store.addOnboardingState(onboardingState);
+
+  res.status(201).json({
+    ...onboardingState,
+    customerName: customer.name,
+    customerIndustry: customer.industry,
+    customerRegion: customer.region
+  });
 });
 
 // Get customer by ID
@@ -65,8 +101,12 @@ app.get('/api/tenants/:customerId', (req, res) => {
   res.json(tenant);
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Onboarding API server running at http://localhost:${PORT}`);
-  console.log(`   Health check: http://localhost:${PORT}/api/health`);
-});
+// Start server (only when run directly, not when imported for tests)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Onboarding API server running at http://localhost:${PORT}`);
+    console.log(`   Health check: http://localhost:${PORT}/api/health`);
+  });
+}
+
+module.exports = app;

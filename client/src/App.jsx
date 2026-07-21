@@ -59,7 +59,12 @@ function App() {
           <DashboardTab data={onboardingData} loading={loading} error={error} />
         )}
         {activeTab === 'customer-info' && (
-          <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
+          <CustomerInfoForm
+            onCreated={(entry) => {
+              setOnboardingData(prev => [entry, ...prev]);
+              setActiveTab('dashboard');
+            }}
+          />
         )}
         {activeTab === 'data-mapping' && (
           <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
@@ -146,6 +151,65 @@ function Checklist({ steps }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function CustomerInfoForm({ onCreated }) {
+  const [form, setForm] = useState({ name: '', industry: '', region: '', contactEmail: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const update = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const entry = await res.json();
+      onCreated(entry);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form className="customer-form" onSubmit={handleSubmit}>
+      <h2>Add Customer</h2>
+      {error && <p className="form-error">⚠️ {error}</p>}
+
+      <div className="form-field">
+        <label htmlFor="name">Name *</label>
+        <input id="name" type="text" value={form.name} onChange={update('name')} required />
+      </div>
+      <div className="form-field">
+        <label htmlFor="industry">Industry</label>
+        <input id="industry" type="text" value={form.industry} onChange={update('industry')} />
+      </div>
+      <div className="form-field">
+        <label htmlFor="region">Region</label>
+        <input id="region" type="text" value={form.region} onChange={update('region')} />
+      </div>
+      <div className="form-field">
+        <label htmlFor="contactEmail">Contact Email</label>
+        <input id="contactEmail" type="email" value={form.contactEmail} onChange={update('contactEmail')} />
+      </div>
+
+      <button className="form-submit" type="submit" disabled={submitting}>
+        {submitting ? 'Adding…' : 'Add to Queue'}
+      </button>
+    </form>
   );
 }
 
