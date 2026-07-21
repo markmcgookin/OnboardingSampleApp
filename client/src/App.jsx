@@ -59,10 +59,23 @@ function App() {
           <DashboardTab data={onboardingData} loading={loading} error={error} />
         )}
         {activeTab === 'customer-info' && (
-          <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
+          <CustomerInfoForm
+            onCreated={(entry) => {
+              setOnboardingData(prev => [entry, ...prev]);
+              setActiveTab('dashboard');
+            }}
+          />
         )}
         {activeTab === 'data-mapping' && (
-          <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
+          <DataMappingForm
+            customers={onboardingData}
+            onUpdated={(entry) => {
+              setOnboardingData(prev =>
+                prev.map(c => (c.customerId === entry.customerId ? entry : c))
+              );
+              setActiveTab('dashboard');
+            }}
+          />
         )}
         {activeTab === 'tenant-setup' && (
           <PlaceholderTab title="Tenant Setup" description="Provision and configure customer tenant" />
@@ -146,6 +159,154 @@ function Checklist({ steps }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function CustomerInfoForm({ onCreated }) {
+  const [form, setForm] = useState({ name: '', industry: '', region: '', contactEmail: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const update = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const entry = await res.json();
+      onCreated(entry);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form className="customer-form" onSubmit={handleSubmit}>
+      <h2>Add Customer</h2>
+      {error && <p className="form-error">⚠️ {error}</p>}
+
+      <div className="form-field">
+        <label htmlFor="name">Name *</label>
+        <input id="name" type="text" value={form.name} onChange={update('name')} required />
+      </div>
+      <div className="form-field">
+        <label htmlFor="industry">Industry</label>
+        <input id="industry" type="text" value={form.industry} onChange={update('industry')} />
+      </div>
+      <div className="form-field">
+        <label htmlFor="region">Region</label>
+        <input id="region" type="text" value={form.region} onChange={update('region')} />
+      </div>
+      <div className="form-field">
+        <label htmlFor="contactEmail">Contact Email</label>
+        <input id="contactEmail" type="email" value={form.contactEmail} onChange={update('contactEmail')} />
+      </div>
+
+      <button className="form-submit" type="submit" disabled={submitting}>
+        {submitting ? 'Adding…' : 'Add to Queue'}
+      </button>
+    </form>
+  );
+}
+
+function DataMappingForm({ customers, onUpdated }) {
+  const needsMapping = customers.filter(c =>
+    c.steps.some(s => s.name === 'Data Mapping' && s.status !== 'completed')
+  );
+
+  const [customerId, setCustomerId] = useState('');
+  const [mapping, setMapping] = useState({ id: '', name: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const update = (field) => (e) => setMapping(prev => ({ ...prev, [field]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!customerId) {
+      setError('Select a customer');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/customers/${customerId}/mapping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mapping })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const entry = await res.json();
+      onUpdated(entry);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (needsMapping.length === 0) {
+    return (
+      <div className="placeholder">
+        <h2>Data Mapping</h2>
+        <p>No customers are awaiting data mapping.</p>
+      </div>
+    );
+  }
+
+  return (
+    <form className="customer-form" onSubmit={handleSubmit}>
+      <h2>Map Customer Data</h2>
+      <p style={{ color: '#6b7280', marginBottom: '16px', fontSize: '0.9rem' }}>
+        Enter the customer's column header for each platform field.
+      </p>
+      {error && <p className="form-error">⚠️ {error}</p>}
+
+      <div className="form-field">
+        <label htmlFor="mapping-customer">Customer *</label>
+        <select
+          id="mapping-customer"
+          value={customerId}
+          onChange={(e) => setCustomerId(e.target.value)}
+          required
+        >
+          <option value="">Select a customer…</option>
+          {needsMapping.map(c => (
+            <option key={c.customerId} value={c.customerId}>{c.customerName}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="map-id">Client ID → platform <code>id</code> *</label>
+        <input id="map-id" type="text" value={mapping.id} onChange={update('id')}
+          placeholder="e.g. Client ID / clientId / client_id" required />
+      </div>
+      <div className="form-field">
+        <label htmlFor="map-name">Client Name → platform <code>name</code> *</label>
+        <input id="map-name" type="text" value={mapping.name} onChange={update('name')}
+          placeholder="e.g. Client Name / companyName / business_name" required />
+      </div>
+
+      <button className="form-submit" type="submit" disabled={submitting}>
+        {submitting ? 'Saving…' : 'Save Mapping'}
+      </button>
+    </form>
   );
 }
 

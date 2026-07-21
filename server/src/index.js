@@ -1,6 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
+const {
+  createCustomer,
+  createDefaultOnboardingSteps,
+  calculateProgress
+} = require('./models');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +22,73 @@ app.get('/api/health', (req, res) => {
 // Get all customers
 app.get('/api/customers', (req, res) => {
   res.json(store.getCustomers());
+});
+
+// Create a customer (Customer Info step auto-completed)
+app.post('/api/customers', (req, res) => {
+  const { name, industry, region, contactEmail } = req.body || {};
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+
+  const customer = createCustomer({ name: name.trim(), industry, region, contactEmail });
+
+  const steps = createDefaultOnboardingSteps();
+  const infoStep = steps.find(s => s.name === 'Customer Info');
+  infoStep.status = 'completed';
+
+  const onboardingState = {
+    customerId: customer.id,
+    steps,
+    progressPercent: calculateProgress(steps)
+  };
+
+  store.addCustomer(customer);
+  store.addOnboardingState(onboardingState);
+
+  res.status(201).json({
+    ...onboardingState,
+    customerName: customer.name,
+    customerIndustry: customer.industry,
+    customerRegion: customer.region
+  });
+});
+
+// Save a data mapping (Data Mapping step completed)
+const REQUIRED_MAPPING_FIELDS = ['id', 'name'];
+
+app.post('/api/customers/:id/mapping', (req, res) => {
+  const state = store.getOnboardingState(req.params.id);
+  if (!state) {
+    return res.status(404).json({ error: 'Onboarding state not found' });
+  }
+
+  const { mapping } = req.body || {};
+  const missing = REQUIRED_MAPPING_FIELDS.filter(
+    field => !mapping || !mapping[field] || !String(mapping[field]).trim()
+  );
+  if (missing.length > 0) {
+    return res.status(400).json({ error: `mapping is missing required field(s): ${missing.join(', ')}` });
+  }
+
+  const steps = state.steps.map(step =>
+    step.name === 'Data Mapping' ? { ...step, status: 'completed' } : step
+  );
+
+  const updated = store.updateOnboardingState(req.params.id, {
+    steps,
+    mapping,
+    progressPercent: calculateProgress(steps)
+  });
+
+  const customer = store.getCustomerById(req.params.id);
+  res.status(200).json({
+    ...updated,
+    customerName: customer?.name || 'Unknown',
+    customerIndustry: customer?.industry || '',
+    customerRegion: customer?.region || ''
+  });
 });
 
 // Get customer by ID
@@ -65,8 +137,12 @@ app.get('/api/tenants/:customerId', (req, res) => {
   res.json(tenant);
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Onboarding API server running at http://localhost:${PORT}`);
-  console.log(`   Health check: http://localhost:${PORT}/api/health`);
-});
+// Start server (only when run directly, not when imported for tests)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Onboarding API server running at http://localhost:${PORT}`);
+    console.log(`   Health check: http://localhost:${PORT}/api/health`);
+  });
+}
+
+module.exports = app;
