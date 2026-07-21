@@ -1,0 +1,8 @@
+clientId,companyName,industry,region,accountStatus
+XYZ-2001,Globex Corporation,Energy,EMEA,active
+XYZ-2002,Soylent Foods,Food Production,EMEA,active
+XYZ-2003,Initech Systems,Technology,EMEA,pending
+XYZ-2004,Umbrella Health,Healthcare,EMEA,active
+XYZ-2005,Hooli Analytics,Technology,EMEA,active
+XYZ-2006,Vandelay Imports,Wholesale,EMEA,inactive
+XYZ-2007,Massive Dynamic,Research,EMEA,active

@@ -1,0 +1,10 @@
+client_id,business_name,industry_sector,region_code,is_active
+PB-3001,Stark Industries,Defense,APAC,true
+PB-3002,Wayne Enterprises,Conglomerate,APAC,true
+PB-3003,Oscorp Chemicals,Chemicals,APAC,false
+PB-3004,Cyberdyne Robotics,Robotics,APAC,true
+PB-3005,Gekko Capital,Finance,APAC,true
+PB-3006,Nakatomi Trading,Wholesale,APAC,true
+PB-3007,Weyland Mining,Mining,APAC,false
+PB-3008,Tyrell Bio,Biotech,APAC,true
+PB-3009,Abstergo Media,Publishing,APAC,true

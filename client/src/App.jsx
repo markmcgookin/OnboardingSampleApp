@@ -78,10 +78,25 @@ function App() {
           />
         )}
         {activeTab === 'tenant-setup' && (
-          <PlaceholderTab title="Tenant Setup" description="Provision and configure customer tenant" />
+          <TenantSetupTab
+            customers={onboardingData}
+            onUpdated={(entry) => {
+              setOnboardingData(prev =>
+                prev.map(c => (c.customerId === entry.customerId ? entry : c))
+              );
+              setActiveTab('dashboard');
+            }}
+          />
         )}
         {activeTab === 'import' && (
-          <PlaceholderTab title="Import" description="Import customer data into the platform" />
+          <ImportTab
+            customers={onboardingData}
+            onUpdated={(entry) => {
+              setOnboardingData(prev =>
+                prev.map(c => (c.customerId === entry.customerId ? entry : c))
+              );
+            }}
+          />
         )}
       </main>
     </div>
@@ -306,6 +321,188 @@ function DataMappingForm({ customers, onUpdated }) {
       <button className="form-submit" type="submit" disabled={submitting}>
         {submitting ? 'Saving…' : 'Save Mapping'}
       </button>
+    </form>
+  );
+}
+
+function TenantSetupTab({ customers, onUpdated }) {
+  const needsSetup = customers.filter(c =>
+    c.steps.some(s => s.name === 'Tenant Setup' && s.status !== 'completed')
+  );
+
+  const [customerId, setCustomerId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!customerId) {
+      setError('Select a customer');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tenants/${customerId}/provision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const entry = await res.json();
+      onUpdated(entry);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (needsSetup.length === 0) {
+    return (
+      <div className="placeholder">
+        <h2>Tenant Setup</h2>
+        <p>No customers are awaiting tenant provisioning.</p>
+      </div>
+    );
+  }
+
+  return (
+    <form className="customer-form" onSubmit={handleSubmit}>
+      <h2>Provision Tenant</h2>
+      <p style={{ color: '#6b7280', marginBottom: '16px', fontSize: '0.9rem' }}>
+        Creates the customer's tenant and sets it active.
+      </p>
+      {error && <p className="form-error">⚠️ {error}</p>}
+
+      <div className="form-field">
+        <label htmlFor="tenant-customer">Customer *</label>
+        <select
+          id="tenant-customer"
+          value={customerId}
+          onChange={(e) => setCustomerId(e.target.value)}
+          required
+        >
+          <option value="">Select a customer…</option>
+          {needsSetup.map(c => (
+            <option key={c.customerId} value={c.customerId}>{c.customerName}</option>
+          ))}
+        </select>
+      </div>
+
+      <button className="form-submit" type="submit" disabled={submitting}>
+        {submitting ? 'Provisioning…' : 'Provision Tenant'}
+      </button>
+    </form>
+  );
+}
+
+function ImportTab({ customers, onUpdated }) {
+  const needsImport = customers.filter(c =>
+    c.steps.some(s => s.name === 'Import' && s.status !== 'completed')
+  );
+
+  const [customerId, setCustomerId] = useState('');
+  const [csv, setCsv] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCsv(String(reader.result));
+    reader.readAsText(file);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!customerId) {
+      setError('Select a customer');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch(`/api/customers/${customerId}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const entry = await res.json();
+      onUpdated(entry);
+      setSuccess({ rowCount: entry.importSummary.rowCount, percent: entry.progressPercent });
+      setCsv('');
+      setCustomerId('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form className="customer-form" onSubmit={handleSubmit}>
+      <h2>Import Data</h2>
+      <p style={{ color: '#6b7280', marginBottom: '16px', fontSize: '0.9rem' }}>
+        Paste a customer's CSV export (or choose a file) to import their records.
+      </p>
+      {error && <p className="form-error">⚠️ {error}</p>}
+      {success && (
+        <p className="form-success">
+          ✓ Imported {success.rowCount} record(s) — customer now at {success.percent}%.
+        </p>
+      )}
+
+      {needsImport.length === 0 ? (
+        <p style={{ color: '#6b7280' }}>No customers are awaiting import.</p>
+      ) : (
+        <>
+          <div className="form-field">
+            <label htmlFor="import-customer">Customer *</label>
+            <select
+              id="import-customer"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              required
+            >
+              <option value="">Select a customer…</option>
+              {needsImport.map(c => (
+                <option key={c.customerId} value={c.customerId}>{c.customerName}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="import-file">CSV file (optional)</label>
+            <input id="import-file" type="file" accept=".csv,text/csv" onChange={handleFile} />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="import-csv">CSV data *</label>
+            <textarea
+              id="import-csv"
+              value={csv}
+              onChange={(e) => setCsv(e.target.value)}
+              rows={8}
+              placeholder="Client ID,Client Name&#10;1,Acme Corp&#10;2,Globex Inc"
+              required
+            />
+          </div>
+
+          <button className="form-submit" type="submit" disabled={submitting}>
+            {submitting ? 'Importing…' : 'Import Data'}
+          </button>
+        </>
+      )}
     </form>
   );
 }

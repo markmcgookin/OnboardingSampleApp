@@ -1,0 +1,9 @@
+Client ID,Client Name,Industry,Region,Status
+1001,Northwind Traders,Retail,North America,Active
+1002,Contoso Manufacturing,Manufacturing,North America,Active
+1003,Fabrikam Logistics,Transport,North America,Pending
+1004,Adventure Works,Outdoor Retail,North America,Active
+1005,Tailspin Toys,Consumer Goods,North America,Active
+1006,Wingtip Financial,Finance,North America,Inactive
+1007,Proseware Media,Publishing,North America,Active
+1008,Litware Software,Technology,North America,Active
