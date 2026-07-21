@@ -13,6 +13,11 @@ function App() {
   const [onboardingData, setOnboardingData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.toggle('dark', dark);
+  }, [dark]);
 
   useEffect(() => {
     fetch('/api/onboarding')
@@ -38,8 +43,17 @@ function App() {
   return (
     <div className="app">
       <header>
-        <h1>Onboarding Dashboard</h1>
-        <p>Customer Success Team - Internal Tool</p>
+        <div>
+          <h1>Onboarding Dashboard</h1>
+          <p>Customer Success Team - Internal Tool</p>
+        </div>
+        <button
+          className="theme-toggle"
+          onClick={() => setDark(d => !d)}
+          aria-label="Toggle dark mode"
+        >
+          {dark ? '☀️ Light' : '🌙 Dark'}
+        </button>
       </header>
 
       <nav className="tabs">
