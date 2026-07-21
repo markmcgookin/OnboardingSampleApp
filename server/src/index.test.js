@@ -49,3 +49,48 @@ describe('POST /api/customers', () => {
     assert.ok(data.error);
   });
 });
+
+async function postMapping(customerId, body) {
+  const res = await fetch(`${baseUrl}/api/customers/${customerId}/mapping`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => null);
+  return { status: res.status, data };
+}
+
+describe('POST /api/customers/:id/mapping', () => {
+  it('saves a mapping, completes the Data Mapping step, and advances to 50%', async () => {
+    const created = await postCustomer({ name: 'Mapping Corp' });
+    const customerId = created.data.customerId;
+
+    const { status, data } = await postMapping(customerId, {
+      mapping: { id: 'Client ID', name: 'Client Name' }
+    });
+
+    assert.strictEqual(status, 200);
+    const mappingStep = data.steps.find(s => s.name === 'Data Mapping');
+    assert.strictEqual(mappingStep.status, 'completed');
+    assert.strictEqual(data.progressPercent, 50);
+    assert.deepStrictEqual(data.mapping, { id: 'Client ID', name: 'Client Name' });
+  });
+
+  it('returns 400 when a required target field is missing', async () => {
+    const created = await postCustomer({ name: 'Incomplete Corp' });
+    const { status, data } = await postMapping(created.data.customerId, {
+      mapping: { id: 'Client ID' }
+    });
+
+    assert.strictEqual(status, 400);
+    assert.ok(data.error);
+  });
+
+  it('returns 404 for an unknown customer', async () => {
+    const { status } = await postMapping('cust_does_not_exist', {
+      mapping: { id: 'a', name: 'b' }
+    });
+
+    assert.strictEqual(status, 404);
+  });
+});

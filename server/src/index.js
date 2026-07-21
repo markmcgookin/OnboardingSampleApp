@@ -55,6 +55,42 @@ app.post('/api/customers', (req, res) => {
   });
 });
 
+// Save a data mapping (Data Mapping step completed)
+const REQUIRED_MAPPING_FIELDS = ['id', 'name'];
+
+app.post('/api/customers/:id/mapping', (req, res) => {
+  const state = store.getOnboardingState(req.params.id);
+  if (!state) {
+    return res.status(404).json({ error: 'Onboarding state not found' });
+  }
+
+  const { mapping } = req.body || {};
+  const missing = REQUIRED_MAPPING_FIELDS.filter(
+    field => !mapping || !mapping[field] || !String(mapping[field]).trim()
+  );
+  if (missing.length > 0) {
+    return res.status(400).json({ error: `mapping is missing required field(s): ${missing.join(', ')}` });
+  }
+
+  const steps = state.steps.map(step =>
+    step.name === 'Data Mapping' ? { ...step, status: 'completed' } : step
+  );
+
+  const updated = store.updateOnboardingState(req.params.id, {
+    steps,
+    mapping,
+    progressPercent: calculateProgress(steps)
+  });
+
+  const customer = store.getCustomerById(req.params.id);
+  res.status(200).json({
+    ...updated,
+    customerName: customer?.name || 'Unknown',
+    customerIndustry: customer?.industry || '',
+    customerRegion: customer?.region || ''
+  });
+});
+
 // Get customer by ID
 app.get('/api/customers/:id', (req, res) => {
   const customer = store.getCustomerById(req.params.id);

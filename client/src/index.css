@@ -190,17 +190,27 @@ header p {
   color: #374151;
 }
 
-.form-field input {
+.form-field input,
+.form-field select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 1rem;
+  background: white;
 }
 
-.form-field input:focus {
+.form-field input:focus,
+.form-field select:focus {
   outline: none;
   border-color: #2563eb;
+}
+
+.form-field code {
+  background: #f3f4f6;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.85em;
 }
 
 .form-submit {
