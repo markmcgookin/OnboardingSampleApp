@@ -124,3 +124,42 @@ describe('POST /api/tenants/:customerId/provision', () => {
     assert.strictEqual(status, 404);
   });
 });
+
+async function importData(customerId, csv) {
+  const res = await fetch(`${baseUrl}/api/customers/${customerId}/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csv })
+  });
+  const data = await res.json().catch(() => null);
+  return { status: res.status, data };
+}
+
+describe('POST /api/customers/:id/import', () => {
+  it('counts rows, stores a summary, and completes the Import step', async () => {
+    const created = await postCustomer({ name: 'Import Corp' });
+    const customerId = created.data.customerId;
+
+    const csv = 'Client ID,Client Name\n1,Acme\n2,Globex';
+    const { status, data } = await importData(customerId, csv);
+
+    assert.strictEqual(status, 200);
+    assert.strictEqual(data.importSummary.rowCount, 2);
+    assert.strictEqual(data.importSummary.columnCount, 2);
+    const importStep = data.steps.find(s => s.name === 'Import');
+    assert.strictEqual(importStep.status, 'completed');
+  });
+
+  it('returns 400 for a CSV with no data rows', async () => {
+    const created = await postCustomer({ name: 'Empty Import Corp' });
+    const { status, data } = await importData(created.data.customerId, 'Header Only');
+
+    assert.strictEqual(status, 400);
+    assert.ok(data.error);
+  });
+
+  it('returns 404 for an unknown customer', async () => {
+    const { status } = await importData('cust_does_not_exist', 'a,b\n1,2');
+    assert.strictEqual(status, 404);
+  });
+});
